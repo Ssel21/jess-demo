@@ -91,7 +91,10 @@ public with sharing class PlaceOrderController {
 
 
     public static String convertLead(Lead lead, OrderWrapper order){
+        System.debug('convert Lead process');
         String statusMessage = '';
+        Product2 product = [SELECT Id, Name, Product_UUID__c, Price__c  FROM Product2 WHERE Product_UUID__c = :order.productUuid];
+        PricebookEntry productEntry = [SELECT Id, Product2Id  FROM PricebookEntry WHERE Product2Id = :product.Id];
         Account account = new Account(Name= lead.Company);
         insert account;
 
@@ -101,6 +104,16 @@ public with sharing class PlaceOrderController {
 
         Contact contact = new Contact(FirstName = order.personalFirstName, LastName = order.personalLastName, AccountId = account.Id);
         insert contact;
+
+        List<OpportunityLineItem> oppProducts = new List<OpportunityLineItem>();
+  
+        oppProducts.add(new OpportunityLineItem(OpportunityId = opportunity.Id, Product2Id=product.Id, Quantity= order.productQuantity, TotalPrice=product.Price__c, PricebookEntryId = productEntry.Id));
+        
+       
+        insert oppProducts;
+        
+        opportunity.StageName = 'Closed Won';
+        update opportunity;
 
         return SUCCESS;
     }
@@ -127,6 +140,9 @@ public with sharing class PlaceOrderController {
         
        
         insert oppProducts;
+
+        opportunity.StageName = 'Closed Won';
+        update opportunity;
 
         return SUCCESS;
     }
