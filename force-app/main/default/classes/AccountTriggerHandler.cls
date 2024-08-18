@@ -13,7 +13,7 @@ public with sharing class AccountTriggerHandler {
         }
 
         //fetch all leads that has the same names in accountNames
-        List<Lead> leads = [SELECT Id, Company FROM Lead WHERE Company IN :accountNames];
+        List<Lead> leads = [SELECT Id, Company, Status FROM Lead WHERE Company IN :accountNames];
         Map<String, Lead> mappedExistingLeads = new Map<String, Lead>();
         if(!leads.isEmpty()){
             for(Lead lead: leads){
@@ -21,10 +21,11 @@ public with sharing class AccountTriggerHandler {
             }
         }
 
-
+        String converted = 'Closed - Converted';
         if(!newAccounts.isEmpty()){
             for(Account account : newAccounts){
-                if(mappedExistingLeads.containsKey(account.Name)){
+                Boolean isConverted = mappedExistingLeads.get(account.Name).Status == converted ? true: false;
+                if(mappedExistingLeads.containsKey(account.Name) && isConverted){
                     account.addError('Lead with the same Company Name already exists');
                 }
             }

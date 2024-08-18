@@ -1,6 +1,6 @@
-trigger AccountDuplicateTrigger on Account (before insert, before update) {
+trigger AccountDuplicateTrigger on Account (before insert) {
 
-    if(Trigger.isBefore && (Trigger.isInsert || Trigger.isUpdate)){
+    if(Trigger.isBefore && Trigger.isInsert){
         AccountTriggerHandler.checkIfWithExistingLead(Trigger.new);
     }
 
