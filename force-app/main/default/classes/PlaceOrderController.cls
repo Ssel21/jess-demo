@@ -2,16 +2,19 @@ public with sharing class PlaceOrderController {
     public PlaceOrderController() {
 
     }
+    
     public static final String SUCCESS = 'Success';
     public static final String FAILED = 'Failed';
+    public static final String CLOSED_WON = 'Closed Won';
 
 
    
 
 
-    public static void placeOrder(List<OrderWrapper> orders){
-        
+    public static OperationResult placeOrder(List<OrderWrapper> orders){
+                OperationResult result = new OperationResult();
                 Boolean matched = false;
+                Boolean isLeadConverted;
                 Set<String> companies = new Set<String>();
                 Map<String, OrderWrapper> mappedOrders  = new Map<String, OrderWrapper>();
                 for(OrderWrapper ordr : orders){
@@ -28,106 +31,85 @@ public with sharing class PlaceOrderController {
             if(!accounts.isEmpty()){
                 System.debug('accounts : ' + accounts);
                 System.debug('an account with the same company name exists');
-                return;
+                result.message = 'No action';
+                result.statusCode = 200;
+                result.success = true;
+                System.debug('Code :  ' + result.statusCode);
+                return result;
             }else if(!leads.isEmpty()){
                 /**1.  a. If they find any Lead that matches the Company Name, then convert this Lead into:
                 Account, Opportunity and Contact**/
                   for(Lead lead: leads){
                     OrderWrapper getOrder =  mappedOrders.get(lead.Company);
-                    String message = convertLead(lead, getOrder);
+                    if(getOrder!= null){
+                        
+                            LeadConversionQueueable leadConversionJob = new LeadConversionQueueable(lead, getOrder);
+                            Id jobId = System.enqueueJob(leadConversionJob);
+                            AsyncApexJob job = [SELECT Id, Status, NumberOfErrors, JobItemsProcessed, TotalJobItems, CreatedDate, CompletedDate 
+                            FROM AsyncApexJob WHERE Id = :jobId];
+                        if(job.Status == 'Completed'){
+                            System.debug('Lead conversion completed successfully!');
+                            result.message = 'Success';
+                            result.success = true;
+                            result.statusCode = 200;
+                        }else if(job.Status == 'Failed'){
+                            System.debug('Job failed');
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
+                        }else{
+                            System.debug('Job Status : ' + job.Status);
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
+                        }
+                       
+                    }
+                    
                 }    
+                System.debug('Code :  ' + result.statusCode);
+                return result;
 
             }else{
                 System.debug('No existing Lead and Account ');
                 for(OrderWrapper ordr : orders){
-                    String message = convertToLeadContactAccount(ordr);
+                    OpportunityContactAccountQueueable oppQue = new OpportunityContactAccountQueueable(ordr);
+                    Id jobId = System.enqueueJob(oppQue);
+                    AsyncApexJob job = [SELECT Id, Status, NumberOfErrors, JobItemsProcessed, TotalJobItems, CreatedDate, CompletedDate 
+                            FROM AsyncApexJob WHERE Id = :jobId];
+                        if(job.Status == 'Completed'){
+                            System.debug('Job completed successfully!');
+                            result.message = 'Success';
+                            result.success = true;
+                            result.statusCode = 200;
+                        }else if(job.Status == 'Failed'){
+                            System.debug('Job failed');
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
+                        }else{
+                            System.debug('Job Status : ' + job.Status);
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
+                        }
                 }
                
-
+                // result.message = 'Account, Opportunity and Contact created successfully!';
+                // result.statusCode = 200;
+                // result.success = true;
+                System.debug('Code :  ' + result.statusCode);
+                System.debug('success :  ' + result.success);
+                System.debug('message :  ' + result.message);
+                return result;
             }
+
+           
           
              
 
 
 
-        /**Set<String> productUuIds = new Set<String>();
-        Set<Id> product2Ids = new Set<Id>();
-        for(OrderWrapper order: orders){
-            productUuIds.add(order.productUuid);
-        }
-
-        List<Pricebook2> priceBooks = [SELECT Id, Name FROM Pricebook2];
-        Opportunity opportunity =  new Opportunity(Name = 'Opp Test 4',  StageName='Prospecting', CloseDate=Date.today(), Pricebook2Id = priceBooks[1].Id);
-        insert opportunity; 
-        
-        
-        List<Product2> products = [SELECT Id, Name, Product_UUID__c, Price__c  FROM Product2 WHERE Product_UUID__c IN :productUuIds];
-        //map to get product ids easily
-        Map<Id, Product2> mappedProdIds = new Map<Id, Product2>(products);
-        //map to get product UUIDS easily
-        Map<String, Product2> mappedProducts = new Map<String, Product2>(products);
-        //get all product ids
-        product2Ids = mappedProdIds.keySet();
-        //map products and its UUIDS
-        for(Product2 prod: products){
-            mappedProducts.put(prod.Product_UUID__c, prod);
-        }
-
-        List<PricebookEntry> productEntries = [SELECT Id, Product2Id  FROM PricebookEntry WHERE Product2Id IN :product2Ids];
-        Map<Id, Id> mappedPricebookEntries = new Map<Id, Id>();
-        for(PricebookEntry entry: productEntries){
-            mappedPricebookEntries.put(entry.Product2Id, entry.Id);
-        }
-
-        List<OpportunityLineItem> oppProducts = new List<OpportunityLineItem>();
-        for(OrderWrapper order: orders){
-            Product2 filteredProduct = mappedProducts.get(order.productUuid);
-            Id filteredPricebookEntry = mappedPricebookEntries.get(filteredProduct.Id);
-            oppProducts.add(new OpportunityLineItem(OpportunityId = opportunity.Id, Product2Id=filteredProduct.Id, Quantity= order.productQuantity, TotalPrice=filteredProduct.Price__c, PricebookEntryId = filteredPricebookEntry));
-        }
-       
-        insert oppProducts;**/
     }
-
-
-    public static String convertLead(Lead lead, OrderWrapper order){
-        String statusMessage = '';
-        Account account = new Account(Name= lead.Company);
-        insert account;
-
-        List<Pricebook2> priceBooks = [SELECT Id, Name FROM Pricebook2];
-        Opportunity opportunity =  new Opportunity(Name=lead.Company, StageName='Prospecting', CloseDate=Date.today(), Pricebook2Id = priceBooks[1].Id, AccountId=account.Id);
-        insert opportunity;
-
-        Contact contact = new Contact(FirstName = order.personalFirstName, LastName = order.personalLastName, AccountId = account.Id);
-        insert contact;
-
-        return SUCCESS;
-    }
-    public static String convertToLeadContactAccount(OrderWrapper order){
-        String statusMessage = '';
-
-        Product2 product = [SELECT Id, Name, Product_UUID__c, Price__c  FROM Product2 WHERE Product_UUID__c = :order.productUuid];
-        PricebookEntry productEntry = [SELECT Id, Product2Id  FROM PricebookEntry WHERE Product2Id = :product.Id];
-        Account account = new Account(Name= order.companyName);
-        insert account;
-
-        List<Pricebook2> priceBooks = [SELECT Id, Name FROM Pricebook2];
-        Opportunity opportunity =  new Opportunity(Name=order.companyName, StageName='Prospecting', CloseDate=Date.today(), Pricebook2Id = priceBooks[1].Id, AccountId=account.Id);
-        insert opportunity;
-
-
-        Contact contact = new Contact(FirstName = order.personalFirstName, LastName = order.personalLastName, AccountId = account.Id);
-        insert contact;
-
-        
-        List<OpportunityLineItem> oppProducts = new List<OpportunityLineItem>();
-  
-        oppProducts.add(new OpportunityLineItem(OpportunityId = opportunity.Id, Product2Id=product.Id, Quantity= order.productQuantity, TotalPrice=product.Price__c, PricebookEntryId = productEntry.Id));
-        
-       
-        insert oppProducts;
-
-        return SUCCESS;
-    }
+ 
 }
