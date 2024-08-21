@@ -22,13 +22,15 @@ public with sharing class AccountTriggerHandler {
         }
 
         String converted = 'Closed - Converted';
-        if(!newAccounts.isEmpty()){
+        if(!newAccounts.isEmpty() && !mappedExistingLeads.isEmpty()){
             for(Account account : newAccounts){
                 Boolean isConverted = mappedExistingLeads.get(account.Name).Status == converted ? true: false;
                 if(mappedExistingLeads.containsKey(account.Name) && isConverted){
                     account.addError('Lead with the same Company Name already exists');
                 }
             }
+        }else{
+            return;
         }
         
     }

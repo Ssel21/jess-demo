@@ -2,6 +2,7 @@ public with sharing class PlaceOrderController {
     public PlaceOrderController() {
 
     }
+    
     public static final String SUCCESS = 'Success';
     public static final String FAILED = 'Failed';
     public static final String CLOSED_WON = 'Closed Won';
@@ -41,16 +42,28 @@ public with sharing class PlaceOrderController {
                   for(Lead lead: leads){
                     OrderWrapper getOrder =  mappedOrders.get(lead.Company);
                     if(getOrder!= null){
-                        isLeadConverted = convertLead(lead, getOrder);
-                        if(isLeadConverted){
+                        
+                            LeadConversionQueueable leadConversionJob = new LeadConversionQueueable(lead, getOrder);
+                            Id jobId = System.enqueueJob(leadConversionJob);
+                            AsyncApexJob job = [SELECT Id, Status, NumberOfErrors, JobItemsProcessed, TotalJobItems, CreatedDate, CompletedDate 
+                            FROM AsyncApexJob WHERE Id = :jobId];
+                        if(job.Status == 'Completed'){
+                            System.debug('Lead conversion completed successfully!');
                             result.message = 'Success';
                             result.success = true;
                             result.statusCode = 200;
+                        }else if(job.Status == 'Failed'){
+                            System.debug('Job failed');
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
                         }else{
+                            System.debug('Job Status : ' + job.Status);
                             result.message = 'Failed';
                             result.success = false;
                             result.statusCode = 500;
                         }
+                       
                     }
                     
                 }    
@@ -60,13 +73,34 @@ public with sharing class PlaceOrderController {
             }else{
                 System.debug('No existing Lead and Account ');
                 for(OrderWrapper ordr : orders){
-                    // message = convertToLeadContactAccount(ordr);
+                    OpportunityContactAccountQueueable oppQue = new OpportunityContactAccountQueueable(ordr);
+                    Id jobId = System.enqueueJob(oppQue);
+                    AsyncApexJob job = [SELECT Id, Status, NumberOfErrors, JobItemsProcessed, TotalJobItems, CreatedDate, CompletedDate 
+                            FROM AsyncApexJob WHERE Id = :jobId];
+                        if(job.Status == 'Completed'){
+                            System.debug('Job completed successfully!');
+                            result.message = 'Success';
+                            result.success = true;
+                            result.statusCode = 200;
+                        }else if(job.Status == 'Failed'){
+                            System.debug('Job failed');
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
+                        }else{
+                            System.debug('Job Status : ' + job.Status);
+                            result.message = 'Failed';
+                            result.success = false;
+                            result.statusCode = 500;
+                        }
                 }
                
-                result.message = 'No action';
+                result.message = 'Account, Opportunity and Contact created successfully!';
                 result.statusCode = 200;
                 result.success = true;
                 System.debug('Code :  ' + result.statusCode);
+                System.debug('success :  ' + result.success);
+                System.debug('message :  ' + result.message);
                 return result;
             }
 
@@ -77,91 +111,5 @@ public with sharing class PlaceOrderController {
 
 
     }
-
-
-    public static Boolean convertLead(Lead lead, OrderWrapper order){
-        System.debug('convert Lead process');
-        String statusMessage = '';
-        
-
-        Database.LeadConvert lc = new Database.LeadConvert();
-        lc.setLeadId(lead.Id);
-
-        LeadStatus convertStatus = [SELECT Id, ApiName FROM LeadStatus WHERE IsConverted=true LIMIT 1];
-        lc.setConvertedStatus(convertStatus.ApiName);
-        lc.setOpportunityName('Opportunity: ' + lead.Name);
-
-        Database.LeadConvertResult lcr = Database.convertLead(lc);
-        System.debug('convert success');
-        if(lcr.isSuccess()){
-            Opportunity opportunity = [SELECT Id, Name, StageName FROM Opportunity WHERE Id = :lcr.getOpportunityId()];
-            Product2 product = [SELECT Id, Name, Product_UUID__c, Price__c  FROM Product2 WHERE Product_UUID__c = :order.productUuid];
-            PricebookEntry productEntry = [SELECT Id, Product2Id  FROM PricebookEntry WHERE Product2Id = :product.Id];
-            List<OpportunityLineItem> oppProducts = new List<OpportunityLineItem>();
-            oppProducts.add(new OpportunityLineItem(OpportunityId = opportunity.Id, Product2Id=product.Id, Quantity= order.productQuantity, TotalPrice=product.Price__c, PricebookEntryId = productEntry.Id));
-            insert oppProducts;
-    
-         
-            opportunity.StageName = CLOSED_WON;
-            update opportunity;
-            
-            return true;
-    
-        }else{
-            System.debug('Lead conversion failed: ' + lcr.getErrors());
-          
-            return false;
-    
-        }
-       
-       
-      
-     
-    }
-
-
-    public static String convertToLeadContactAccount(OrderWrapper order){
-        /** 
-        String statusMessage = '';
-
-        Product2 product = [SELECT Id, Name, Product_UUID__c, Price__c  FROM Product2 WHERE Product_UUID__c = :order.productUuid];
-        PricebookEntry productEntry = [SELECT Id, Product2Id  FROM PricebookEntry WHERE Product2Id = :product.Id];
-        Account account = new Account(Name= order.companyName);
-        try{
-            insert account;
-        } catch (DmlException e){
-            Logger.logError('Insert failed in insert Account : ' + e.getMessage());
-        
-            
-        }
-        List<Pricebook2> priceBooks = [SELECT Id, Name FROM Pricebook2];
-        Opportunity opportunity =  new Opportunity(Name=order.companyName, StageName='Prospecting', CloseDate=Date.today(), Pricebook2Id = priceBooks[1].Id, AccountId=account.Id);
-        try{
-         
-          insert opportunity;
-        }catch(DmlException e){
-          Logger.logError('Insert failed in insert Opprtunity : ' + e.getMessage());
-          
-        
-        }
-
-     
-
-
-        Contact contact = new Contact(FirstName = order.personalFirstName, LastName = order.personalLastName, AccountId = account.Id);
-        insert contact;
-
-        
-        List<OpportunityLineItem> oppProducts = new List<OpportunityLineItem>();
-  
-        oppProducts.add(new OpportunityLineItem(OpportunityId = opportunity.Id, Product2Id=product.Id, Quantity= order.productQuantity, TotalPrice=product.Price__c, PricebookEntryId = productEntry.Id));
-        
-       
-        insert oppProducts;
-
-        opportunity.StageName = 'Closed Won';
-        update opportunity;**/
-
-        return SUCCESS;
-    }
+ 
 }
