@@ -103,9 +103,9 @@ private class PlaceOrderControllerTest {
         Test.stopTest();
         Lead lead = [SELECT Id, Status, Company FROM Lead WHERE Company = 'Earth'];
         System.debug('Lead Company : ' + lead.Company);
-        // Opportunity opp = [SELECT Id, Name FROM Opportunity WHERE Name = :lead.Company];
+      
         System.assertEquals(lead.Status, 'Closed - Converted', 'Should be the same Stage');
-        // System.assertEquals(opp.StageName, 'Closed Won', 'Opportunity is expected to be closed won');
+     
 
 
     }
