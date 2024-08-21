@@ -18,11 +18,12 @@ public with sharing class LeadConversionQueueable implements Queueable {
 
         LeadStatus convertStatus = [SELECT Id, ApiName FROM LeadStatus WHERE IsConverted=true LIMIT 1];
         lc.setConvertedStatus(convertStatus.ApiName);
-        lc.setOpportunityName('Opportunity: ' + lead.Name);
+        lc.setOpportunityName(lead.Name);
 
         Database.LeadConvertResult lcr = Database.convertLead(lc);
         System.debug('convert success');
         if(lcr.isSuccess()){
+            System.debug('is succeeeesss');
             Opportunity opportunity = [SELECT Id, Name, StageName FROM Opportunity WHERE Id = :lcr.getOpportunityId()];
             Product2 product = [SELECT Id, Name, Product_UUID__c, Price__c  FROM Product2 WHERE Product_UUID__c = :order.productUuid];
             PricebookEntry productEntry = [SELECT Id, Product2Id  FROM PricebookEntry WHERE Product2Id = :product.Id];

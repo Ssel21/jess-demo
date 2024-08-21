@@ -95,9 +95,9 @@ public with sharing class PlaceOrderController {
                         }
                 }
                
-                result.message = 'Account, Opportunity and Contact created successfully!';
-                result.statusCode = 200;
-                result.success = true;
+                // result.message = 'Account, Opportunity and Contact created successfully!';
+                // result.statusCode = 200;
+                // result.success = true;
                 System.debug('Code :  ' + result.statusCode);
                 System.debug('success :  ' + result.success);
                 System.debug('message :  ' + result.message);

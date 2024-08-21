@@ -22,7 +22,7 @@ public with sharing class LeadTriggerHandler {
         }
 
 
-        if(!newLeads.isEmpty()){
+        if(!newLeads.isEmpty() && !mappedExistingAccounts.isEmpty()){
             for(Lead lead : newLeads){
                 if(mappedExistingAccounts.containsKey(lead.Company)){
                     lead.addError('Account with the same  Name already exists');
